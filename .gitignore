@@ -1,4 +1,4 @@
 output
 external_models
-data
 *.log
+bmfia/__pycache__

@@ -13,12 +13,11 @@ QUEENS is an open-source Python framework for solver-independent analyses of lar
 
 1. Get the computational models for the porous media flow from [this GitHub repository](https://github.com/jnitzler/porous_media_flow_bmfia) and follow the setup and compilation instructions.
 2. Install and setup QUEENS by following the instructions in the [QUEENS GitHub repository](https://github.com/queens-py/queens) then activate the QUEENS environment.
-3. Clone this repository to your local machine (with the active QUEENS environment `queens`) and run:
+3. Clone this repository to your local machine (with the active QUEENS environment `queens`)
 
-    ```bash
-    pip install jupyter ipykernel
-    ``` 
+## Run the demonstration
+You can run the main script via:
 
-Afterwards, select the `queens` environment as your Jupyter kernel.
-
-## Run the demonstration / the jupyter notebook
+```bash
+python bmfia_queens_demo.py
+```

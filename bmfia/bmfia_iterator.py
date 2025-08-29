@@ -2,10 +2,9 @@
 
 import itertools
 import logging
+from pathlib import Path
 
 import numpy as np
-
-
 from queens.iterators._iterator import Iterator
 from queens.utils.logger_settings import log_init_args
 
@@ -45,8 +44,10 @@ class BmfiaIterator(Iterator):
         hf_model,
         lf_model,
         initial_design,
+        num_obs,
         grid_interpolator=None,
         global_settings=None,
+        path_trainings_data=None,
     ):
         """Instantiate the BmfiaIterator object.
 
@@ -72,8 +73,9 @@ class BmfiaIterator(Iterator):
         self.Z_train = None
         self.hf_model = hf_model
         self.lf_model = lf_model
-        self.coords_experimental_data = None
+        self.num_obs = num_obs
         self.grid_interpolator = grid_interpolator
+        self.path_trainings_data = Path(path_trainings_data)
 
     @staticmethod
     def _joint_markov_prior_design(
@@ -95,7 +97,6 @@ class BmfiaIterator(Iterator):
             len(hyper_params_combinations), num_hyper_params_steps, replace=False
         )
         hyper_params_list = [hyper_params_combinations[i] for i in hyper_params_indices]
-        breakpoint()
         prior_name = parameters.names[0]
         prior = parameters.dict[prior_name]
 
@@ -143,15 +144,14 @@ class BmfiaIterator(Iterator):
 
         # ------ reshape the simulation data for the probabilistic regression model -----------
         num_samples = self.Y_LF_train.shape[0]
-        num_coords = self.coords_experimental_data.shape[0]
         self.Y_LF_train = self.Y_LF_train.reshape(
-            num_samples, num_coords, -1, order="F"
+            num_samples, self.num_obs, -1, order="F"
         )
         self.Y_HF_train = self.Y_HF_train.reshape(
-            num_samples, num_coords, -1, order="F"
+            num_samples, self.num_obs, -1, order="F"
         )
         self.informative_features_train = self.informative_features_train.reshape(
-            num_samples, num_coords, -1, order="F"
+            num_samples, self.num_obs, -1, order="F"
         )
         self.Z_train = np.concatenate(
             (self.Y_LF_train, self.informative_features_train), axis=2
@@ -161,14 +161,15 @@ class BmfiaIterator(Iterator):
 
     def evaluate_lf_model_for_x_train(self):
         """Evaluate the low-fidelity model for the X_train input data-set."""
-        breakpoint()
         lf_output = self.lf_model.evaluate(self.X_train)
         self.Y_LF_train = lf_output["result"]
-        self.informative_features_train = lf_output.get("meta_data")
+        self.informative_features_train = lf_output.get("features")
 
     def evaluate_hf_model_for_x_train(self):
         """Evaluate the high-fidelity model for the X_train input data-set."""
         x_hf_train = self.X_train_hf
+        # TODO: below is a quick hack that overwrites the parameter keys for the HF model
+        self.parameters.parameters_keys = [str(i) for i in range(x_hf_train.shape[1])]
         self.Y_HF_train = self.hf_model.evaluate(x_hf_train)["result"]
 
     def eval_model(self):
@@ -188,3 +189,10 @@ class BmfiaIterator(Iterator):
         self.evaluate_hf_model_for_x_train()
 
         _logger.info("Successfully calculated the high-fidelity training points!")
+
+    def post_run(self):
+        """Post-run method of the iterator."""
+        # save the training data
+        np.savez(
+            self.path_trainings_data, self.Y_LF_train, self.Y_HF_train, self.informative_features_train
+        )

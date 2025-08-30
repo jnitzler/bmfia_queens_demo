@@ -75,7 +75,6 @@ class GaussianCNN(Surrogate):
                                             function that shall be used for the
                                             respective hidden layer of the  Neural
                                             Network
-        kernel_initializer (str): Type of kernel initialization for neural network
         nugget_std (float): Nugget standard deviation for robustness
     """
 
@@ -110,7 +109,6 @@ class GaussianCNN(Surrogate):
                                                 function that shall be used for the
                                                 respective hidden layer of the  Neural
                                                 Network
-            kernel_initializer (str): Type of kernel initialization for neural network
             nugget_std (float): Nugget standard deviation for robustness
             loss_plot_path (str): Path to determine whether loss plot should be produced
                                   (yes if provided). Plot will be saved at path location.
@@ -173,7 +171,7 @@ class GaussianCNN(Surrogate):
         height, width, input_channels = self.cnn_grid_input
         kernel_size = 3
         pooling_size = 2
-        padding_strategy = "same"  # "valid"
+        padding_strategy = "same"
         activation = tf.keras.layers.ELU()
 
         dropout = 0.25  # 0.3
@@ -317,11 +315,6 @@ class GaussianCNN(Surrogate):
             scale
         )
 
-        # decoder_outputs = tfp.layers.DistributionLambda(
-        #     lambda _: tfd.MultivariateNormalDiag(loc=loc, scale_diag=scale),
-        #     dtype=tf.float32,
-        # )(x)
-
         decoder_outputs = tf.keras.layers.Concatenate(name="gaussian_params")(
             [loc, scale]
         )
@@ -335,7 +328,6 @@ class GaussianCNN(Surrogate):
 
         # compile the Tensorflow model
         autoencoder = tf.keras.Model(inputs=encoder_inputs, outputs=decoder_outputs)
-        # optimizer = tf.optimizers.Adamax(learning_rate=self.adams_training_rate, clipnorm=1.0e3)
         # optimizer = tf.optimizers.Adam(learning_rate=self.adams_training_rate)
         optimizer = tf.keras.optimizers.SGD(
             learning_rate=self.training_rate, clipnorm=1.0e3
@@ -354,14 +346,6 @@ class GaussianCNN(Surrogate):
         return autoencoder
 
     @staticmethod
-    def total_variation_loss(image):
-        return tf.reduce_sum(tf.image.total_variation(image))
-
-    @staticmethod
-    def l2_loss(tensor):
-        return tf.reduce_sum(tf.square(tensor))
-
-    @staticmethod
     def negative_log_likelihood(y_hf, rv_y):
         """Negative log. likelihood of (tensorflow) random variable rv_y.
 
@@ -372,13 +356,11 @@ class GaussianCNN(Surrogate):
         Returns:
             negative_log_likelihood (float): Negative logarithmic likelihood of rv_y at y
         """
-        # negative_log_likelihood = -tf.reduce_mean(rv_y.log_prob(y_hf))
         C = tf.shape(rv_y)[-1] // 2
         loc = rv_y[..., :C]
         scale = rv_y[..., C:]
         dist = tfd.MultivariateNormalDiag(loc=loc, scale_diag=scale)
         return -tf.reduce_mean(dist.log_prob(y_hf))
-        # return negative_log_likelihood
 
     def setup(self, x_train, y_train):
         """Setup surrogate model.

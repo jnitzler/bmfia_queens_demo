@@ -345,7 +345,7 @@ if __name__ == "__main__":
         variational_distribution = SparseNormalVariational(
             dimension, half_off_diag_width=10, nugget_var_diag=1e-7
         )
-        n_samples_per_iter = 6 # number of samples per iteration
+        n_samples_per_iter = 6  # number of samples per iteration
         random_seed = 42
         max_feval = 4000
         stochastic_optimizer = SGD(
@@ -353,6 +353,13 @@ if __name__ == "__main__":
             optimization_type="max",
             rel_l1_change_threshold=1.0e-7,
             rel_l2_change_threshold=1.0e-7,
+        )
+        variational_parameter_initialization = (
+            {
+                "dimension": parameters.num_parameters, 
+                "mean": 1.0,
+                "variance": 0.01,
+            },
         )
 
         rpvi_iterator = RPVI(
@@ -366,7 +373,7 @@ if __name__ == "__main__":
             max_feval,
             stochastic_optimizer,
             variational_transformation=None,
-            variational_parameter_initialization=None,
+            variational_parameter_initialization="random", # we use a custom init here
             natural_gradient=False,
             FIM_dampening=False,
             decay_start_iteration=50,

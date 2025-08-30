@@ -356,7 +356,7 @@ if __name__ == "__main__":
         )
 
         rpvi_iterator = RPVI(
-            lf_model,
+            mf_likelihood,
             parameters,
             global_settings_inference,
             result_description,
@@ -375,4 +375,8 @@ if __name__ == "__main__":
             score_function_bool=False,
             verbose_every_n_iter=10,
         )
+
+        # now actually run the inference
+        run_iterator(rpvi_iterator, global_settings=global_settings_inference)
+        print("Finished inference phase of BMFIA.")
         breakpoint()

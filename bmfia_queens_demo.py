@@ -268,7 +268,7 @@ if __name__ == "__main__":
 
         # setup the multi-fidelity conditional approximation
         mf_conditional_approx = GaussianCNN(
-            num_epochs=5 #5000,
+            num_epochs=5, #5000,
             batch_size=64,
             training_rate=0.005,
             optimizer_seed=42,

@@ -23,7 +23,7 @@ class BMFGaussianModel(Likelihood):
     """Multi fidelity likelihood function.
 
     Multi-fidelity likelihood of the Bayesian multi-fidelity inverse
-    analysis scheme [1, 2].
+    analysis scheme (BMFIA).
 
     Attributes:
         coords_mat (np.array): Row-wise coordinates at which the observations were recorded
@@ -41,16 +41,6 @@ class BMFGaussianModel(Likelihood):
     Returns:
         Instance of BMFGaussianModel. This is a multi-fidelity version of the
         Gaussian noise likelihood model.
-
-
-    References:
-        [1] Nitzler, J.; Biehler, J.; Fehn, N.; Koutsourelakis, P.-S. and Wall, W.A. (2020),
-            "A Generalized Probabilistic Learning Approach for Multi-Fidelity Uncertainty
-            Propagation in Complex Physical Simulations", arXiv:2001.02892
-
-        [2] Nitzler J.; Wall, W. A. and Koutsourelakis P.-S. (2021),
-            "An efficient Bayesian multi-fidelity framework for the solution of high-dimensional
-            inverse problems in computationally demanding simulations", unpublished internal report
     """
 
     def __init__(
@@ -66,8 +56,6 @@ class BMFGaussianModel(Likelihood):
         likelihood_evals_for_refinement=None,
         noise_var_iterative_averaging=None,
         noise_variance=None,
-        noise_type="None",
-        plotting_options=None,
     ):
         """Instantiate the multi-fidelity likelihood class.
 
@@ -81,7 +69,6 @@ class BMFGaussianModel(Likelihood):
             likelihood_evals_for_refinement (lst): List with necessary number of likelihood
                                                    evaluations before the refinement step is
                                                    conducted
-            plotting_options (dict): Options for plotting
         """
         self.y_obs = y_obs_vec
         self.coords_mat = experimental_coordinates
@@ -103,10 +90,6 @@ class BMFGaussianModel(Likelihood):
             self.coord_labels,
             self.coords_mat,
         )
-        # ----------------------- create visualization object(s) ---------------------------------
-        if plotting_options:
-            qvis.from_config_create(plotting_options)
-
         self.mf_approx = mf_approx
         self.noise_var_iterative_averaging = noise_var_iterative_averaging
         self.min_log_lik_mf = None
@@ -119,7 +102,6 @@ class BMFGaussianModel(Likelihood):
         )
         self.variational_params = None  # TODO: this is a hack atm and not very nice
         self.parameters_mean = None  # TODO: this is a hack atm and not very nice
-        self.noise_type = noise_type
         self.spatial_dim = len(self.coord_labels)
         self.initial_tau_param = None
 
@@ -200,9 +182,7 @@ class BMFGaussianModel(Likelihood):
             dampening_coefficient,
             FIM_dampening_lower_bound,
             score_function_bool,
-            gnuplot_file_path=plotting_options.get("svi_noise_param_plot_path"),
         )
-        self.tau_svi.plot_iterations = plotting_options.get("svi_plot_iter", 100)
         self.tau_svi_lst = []
 
     def _evaluate(self, samples):

@@ -1,10 +1,10 @@
 """Sparse Gaussian Markov Random Field distribution."""
 
 import numpy as np
+from queens.distributions._distribution import Continuous
+from queens.utils.logger_settings import log_init_args
 from scipy.sparse import csr_array
 from sksparse.cholmod import cholesky
-from queens.utils.logger_settings import log_init_args
-from queens.distributions._distribution import Continuous
 
 
 class GaussianMarkovRandomField(Continuous):
@@ -199,7 +199,6 @@ class GaussianMarkovRandomField(Continuous):
         grad_logpdf = -self.precision.dot(diff.T).T
 
         return grad_logpdf
-
 
     def pdf(self, x):
         """Probability density function.

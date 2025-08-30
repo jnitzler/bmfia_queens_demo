@@ -1,10 +1,10 @@
 """Sparse Gaussian Markov Random Field distribution."""
 
 import numpy as np
+from queens.distributions._distribution import Continuous
+from queens.utils.logger_settings import log_init_args
 from scipy.sparse import csr_array
 from sksparse.cholmod import cholesky
-from queens.utils.logger_settings import log_init_args
-from queens.distributions._distribution import Continuous
 
 
 class GaussianMarkovRandomField(Continuous):
@@ -34,8 +34,8 @@ class GaussianMarkovRandomField(Continuous):
             self.field_dimension,
         )
         self.precision = None
-        self.chol = None              # lazy, rebuilt per process
-        self.logpdf_const = None      # recomputed with factor
+        self.chol = None  # lazy, rebuilt per process
+        self.logpdf_const = None  # recomputed with factor
         super().__init__(self.mean, self.precision, dimension)  # dummy
 
     # ensure factor exists in the *current* process
@@ -70,7 +70,9 @@ class GaussianMarkovRandomField(Continuous):
                     distance_gradient_mappings.append([neighbors[i], neighbors[i + 1]])
         distance_gradient_mappings = np.array(distance_gradient_mappings)
         distance_gradient_mappings_sorted = np.sort(distance_gradient_mappings, axis=1)
-        distance_gradient_mappings = np.unique(distance_gradient_mappings_sorted, axis=0)
+        distance_gradient_mappings = np.unique(
+            distance_gradient_mappings_sorted, axis=0
+        )
         return distance_gradient_mappings
 
     @staticmethod
@@ -106,7 +108,7 @@ class GaussianMarkovRandomField(Continuous):
 
     def draw(self, num_draws=1):
         """Draw samples from the distribution."""
-        self._ensure_factor() 
+        self._ensure_factor()
         uncorrelated_vector = np.random.randn(self.dimension, num_draws)
         samples = []
         for vector in uncorrelated_vector.T:
@@ -120,7 +122,9 @@ class GaussianMarkovRandomField(Continuous):
         out = []
         # Use matrix ops; keep your original structure
         for sample in dist:
-            out.append(-0.5 * (sample.T @ (self.precision @ sample.T)) + self.logpdf_const)
+            out.append(
+                -0.5 * (sample.T @ (self.precision @ sample.T)) + self.logpdf_const
+            )
         return np.array(out)
 
     def update_delta(self, delta):
@@ -147,7 +151,7 @@ class GaussianMarkovRandomField(Continuous):
         b = 1.0e-9 + 0.5 * mean
 
         delta = a / b
-        self.update_delta(delta)   # sets chol=None
+        self.update_delta(delta)  # sets chol=None
         # No need to refactor for gradient itself
         grad_logpdf = -(self.precision @ diff.T).T
         return grad_logpdf

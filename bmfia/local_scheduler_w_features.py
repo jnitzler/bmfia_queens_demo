@@ -105,7 +105,11 @@ class LocalWFeatures(Local):
                     )
                 )
 
-        result_dict = {"result": [], "gradient": [], "features": []}  # this is different to Local Scheduler
+        result_dict = {
+            "result": [],
+            "gradient": [],
+            "features": [],
+        }  # this is different to Local Scheduler
         for result in results.values():
             # We should remove this squeeze! It is only introduced for consistency with old test.
             result_dict["result"].append(np.atleast_1d(np.array(result[0]).squeeze()))

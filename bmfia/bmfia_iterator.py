@@ -37,6 +37,7 @@ class BmfiaIterator(Iterator):
     Returns:
        BmfiaIterator (obj): Instance of the BmfiaIterator
     """
+
     @log_init_args
     def __init__(
         self,
@@ -194,5 +195,8 @@ class BmfiaIterator(Iterator):
         """Post-run method of the iterator."""
         # save the training data
         np.savez(
-            self.path_trainings_data, self.Y_LF_train, self.Y_HF_train, self.informative_features_train
+            self.path_trainings_data,
+            self.Y_LF_train,
+            self.Y_HF_train,
+            self.informative_features_train,
         )

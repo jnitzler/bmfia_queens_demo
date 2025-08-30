@@ -70,7 +70,6 @@ class Deal(Jobscript):
         )
         self.feature_data_processor = feature_data_processor
 
-
     def prepare_input_files(self, sample_dict, experiment_dir, input_files):
         """Prepare and parse data to input files.
 
@@ -92,7 +91,10 @@ class Deal(Jobscript):
             )
             # filter a list of floats from sample dict values
             samples = [v for v in sample_dict.values() if isinstance(v, float)]
-            np.save(Path(input_files[input_template_name].with_suffix("")), np.array(samples))
+            np.save(
+                Path(input_files[input_template_name].with_suffix("")),
+                np.array(samples),
+            )
 
     def _get_results(self, output_dir):
         """Get results from driver run.
@@ -108,7 +110,7 @@ class Deal(Jobscript):
         if self.data_processor:
             result = self.data_processor.get_data_from_file(output_dir)
             _logger.debug("Got result: %s", result)
-        
+
         features = None
         if self.feature_data_processor:
             features = self.feature_data_processor.get_data_from_file(output_dir)

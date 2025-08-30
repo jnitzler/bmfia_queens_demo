@@ -67,6 +67,8 @@ from queens.main import run_iterator
 from queens.models.simulation import Simulation as SimulationModel
 from queens.models.adjoint import Adjoint as AdjointSimulationModel
 from queens.parameters import Parameters
+from queens.iterators.reparameteriztion_based_variational import RPVI
+from queens.stochastic_optimizers.sgd import SGD
 
 from bmfia.bmfia_iterator import BmfiaIterator
 from bmfia.deal_driver import Deal as DealDriver
@@ -75,6 +77,7 @@ from bmfia.local_scheduler_w_features import LocalWFeatures
 from bmfia.uniform_grid_interpolator import UniformGridInterpolator
 from bmfia.gaussian_cnn import GaussianCNN
 from bmfia.bayesian_mf_gaussian_likelihood import BMFGaussianModel
+from bmfia.sparse_normal_variational import SparseNormalVariational
 
 # define the main execution (necessary for multiprocessing on some systems)
 if __name__ == "__main__":
@@ -295,7 +298,7 @@ if __name__ == "__main__":
 
         # setup the multi-fidelity conditional approximation
         mf_conditional_approx = GaussianCNN(
-            num_epochs=5, #5000,
+            num_epochs=5,  # 5000,
             batch_size=64,
             training_rate=0.005,
             optimizer_seed=42,
@@ -324,8 +327,52 @@ if __name__ == "__main__":
             mf_conditional_approx,
             noise_variance=initial_noise_var,
         )
+
+        ## setup the rpvi iterator for the inference phase
+        result_description = {
+            "iterative_field_names": ["variational_parameters", "elbo"],
+            "write_results": True,
+            "plotting_options": {
+                "svi_plot_iter": 10000,
+                "plot_boolean": False,
+                "plotting_dir": output_dir_path_inference,
+                "plot_name": "variational_params_convergence.jpg",
+                "save_bool": False,
+            },
+        }
+        # setup a sparse normal variational distribution
+        dimension = parameters.num_parameters
+        variational_distribution = SparseNormalVariational(
+            dimension, half_off_diag_width=10, nugget_var_diag=1e-7
+        )
+        n_samples_per_iter = 6 # number of samples per iteration
+        random_seed = 42
+        max_feval = 4000
+        stochastic_optimizer = SGD(
+            learning_rate=1.0e-3,
+            optimization_type="max",
+            rel_l1_change_threshold=1.0e-7,
+            rel_l2_change_threshold=1.0e-7,
+        )
+
+        rpvi_iterator = RPVI(
+            lf_model,
+            parameters,
+            global_settings_inference,
+            result_description,
+            variational_distribution,
+            n_samples_per_iter,
+            random_seed,
+            max_feval,
+            stochastic_optimizer,
+            variational_transformation=None,
+            variational_parameter_initialization=None,
+            natural_gradient=False,
+            FIM_dampening=False,
+            decay_start_iteration=50,
+            dampening_coefficient=1e-2,
+            FIM_dampening_lower_bound=1e-8,
+            score_function_bool=False,
+            verbose_every_n_iter=10,
+        )
         breakpoint()
-
-        # setup the rpvi iterator for the inference phase
-
-

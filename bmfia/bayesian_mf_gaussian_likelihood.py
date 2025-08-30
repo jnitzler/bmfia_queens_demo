@@ -5,7 +5,6 @@ import logging
 import time
 
 import numpy as np
-import queens.visualization.bmfia_visualization as qvis
 from queens.distributions.mean_field_normal import MeanFieldNormal
 from queens.iterators.reparameteriztion_based_variational import RPVI
 from queens.models.likelihoods._likelihood import Likelihood

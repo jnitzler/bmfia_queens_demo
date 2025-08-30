@@ -5,6 +5,7 @@ import numpy as np
 import scipy
 from scipy.sparse import csr_array, dia_array, vstack as sparse_vstack
 
+
 class SparseNormalVariational(Variational):
     r"""Sparse multivariate normal distribution.
 
@@ -29,6 +30,7 @@ class SparseNormalVariational(Variational):
         data_idx_jacobian (np.ndarray): Data indices of the sparse jacobian cholesky decomposition
         nugget_L_diag (np.ndarray): nugget terms on the diagonal of the cholesky decomposition
     """
+
     @log_init_args
     def __init__(self, dimension, half_off_diag_width=None, nugget_var_diag=None):
         """Initialize sparse variational distribution.
@@ -44,8 +46,10 @@ class SparseNormalVariational(Variational):
         for i in range(0, self.half_off_diag_width + 1):
             n_parameters += dimension - i
         self.n_parameters = n_parameters
-        self.row_idx_chol, self.col_idx_chol = SparseNormalVariational._get_sparse_chol_indices(
-            self.dimension, self.half_off_diag_width
+        self.row_idx_chol, self.col_idx_chol = (
+            SparseNormalVariational._get_sparse_chol_indices(
+                self.dimension, self.half_off_diag_width
+            )
         )
         (
             self.row_idx_jacobian,
@@ -100,7 +104,9 @@ class SparseNormalVariational(Variational):
         col_idx_jacobian_part_2 = np.repeat(
             np.arange(half_off_diag_width, dimension), half_off_diag_width + 1
         )
-        col_idx_jacobian = np.concatenate((col_idx_jacobian_part_1, col_idx_jacobian_part_2))
+        col_idx_jacobian = np.concatenate(
+            (col_idx_jacobian_part_1, col_idx_jacobian_part_2)
+        )
 
         data_idx_jacobian = []
         for i in range(0, dimension):
@@ -122,7 +128,9 @@ class SparseNormalVariational(Variational):
             random (bool, optional): If True, a random initialization is used. Otherwise the
                                      default is selected
         """
-        raise NotImplementedError("Random initialization not implemented for sparse Normal")
+        raise NotImplementedError(
+            "Random initialization not implemented for sparse Normal"
+        )
 
     def construct_variational_parameters(
         self, mean, covariance
@@ -147,7 +155,9 @@ class SparseNormalVariational(Variational):
                     entry = 0.0
                 cholesky_params.append(entry)
 
-            variational_parameters = np.hstack((variational_parameters, np.array(cholesky_params)))
+            variational_parameters = np.hstack(
+                (variational_parameters, np.array(cholesky_params))
+            )
         else:
             raise ValueError(
                 f"Dimension of the mean value {len(mean)} does not equal covariance dimension"
@@ -155,7 +165,9 @@ class SparseNormalVariational(Variational):
             )
         return variational_parameters
 
-    def reconstruct_distribution_parameters(self, variational_parameters, return_cholesky=False):
+    def reconstruct_distribution_parameters(
+        self, variational_parameters, return_cholesky=False
+    ):
         """Reconstruct mean value, covariance and its Cholesky decomposition.
 
         Args:
@@ -184,12 +196,6 @@ class SparseNormalVariational(Variational):
             (cholesky_array, (self.row_idx_chol, self.col_idx_chol)),
             shape=(self.dimension, self.dimension),
         )
-        # + csr_array(
-        #     dia_array(
-        #         (self.nugget_L_diag * np.ones(self.dimension), np.array([0])),
-        #         shape=(self.dimension, self.dimension),
-        #     )
-        # )
 
         cov = cholesky_covariance.dot(
             cholesky_covariance.transpose()
@@ -215,7 +221,9 @@ class SparseNormalVariational(Variational):
         grad_cholesky = np.ones((1, self.n_parameters - self.dimension))
         # incorporate the transformation of the diagonal elements
         grad_cholesky[:, self.row_idx_chol == self.col_idx_chol] = np.exp(
-            variational_parameters[self.dimension :][self.row_idx_chol == self.col_idx_chol]
+            variational_parameters[self.dimension :][
+                self.row_idx_chol == self.col_idx_chol
+            ]
         )
         # incorporate the transformation of the off diagonal elements
         grad_cholesky[:, self.row_idx_chol != self.col_idx_chol] = (
@@ -257,7 +265,9 @@ class SparseNormalVariational(Variational):
         )
         y = np.atleast_2d(x).T - mean
         z = scipy.sparse.linalg.spsolve_triangular(L, y, lower=True)
-        u = scipy.sparse.linalg.spsolve_triangular(csr_array(L.transpose()), z, lower=False)
+        u = scipy.sparse.linalg.spsolve_triangular(
+            csr_array(L.transpose()), z, lower=False
+        )
 
         def col_dot_prod(x, y):
             return np.sum(x * y, axis=0)
@@ -323,12 +333,6 @@ class SparseNormalVariational(Variational):
         for sample in sample_batch:
             y = -(sample.reshape(-1, 1) - mean)
 
-            # TODO: Note we tried triangular solve below with cholesky fist but this is unstable!
-            # z = scipy.sparse.linalg.spsolve_triangular(L, y, lower=True)
-            # x = scipy.sparse.linalg.spsolve_triangular(csr_array(L.transpose()), z, lower=False)
-
-            # TODO: we now directly solve a linear system with covariance matrix
-            # TODO note we could make this iterative if necessary
             x = scipy.sparse.linalg.spsolve(K, y)
 
             if np.isnan(x).any():
@@ -344,7 +348,9 @@ class SparseNormalVariational(Variational):
         Args:
             variational_parameters (np.ndarray): Variational parameters
         """
-        raise NotImplementedError("Fisher information matrix not implemented for sparse Normal")
+        raise NotImplementedError(
+            "Fisher information matrix not implemented for sparse Normal"
+        )
 
     def export_dict(self, variational_parameters):
         """Create a dict of the distribution based on the given parameters.
@@ -378,22 +384,9 @@ class SparseNormalVariational(Variational):
             samples_mat (np.ndarray): Array of actual samples from the variational
             distribution
         """
-        standard_normal_sample_batch = np.random.normal(0, 1, size=(n_samples, self.dimension))
-
-        # def gaussian_sobol_samples(n_samples, dimension):
-        #     # Create a Sobol sequence sampler
-        #     breakpoint()
-        #     sampler = qmc.Sobol(d=dimension, scramble=True)  # scramble=True for randomized Sobol
-        #
-        #     # Generate Sobol samples in [0, 1]
-        #     sobol_samples = sampler.random(n=n_samples)
-        #
-        #     # Transform Sobol samples to Gaussian using the inverse CDF (quantile function)
-        #     gaussian_samples = norm.ppf(sobol_samples)
-        #
-        #     return gaussian_samples
-
-        # standard_normal_sample_batch = gaussian_sobol_samples(n_samples, self.dimension)
+        standard_normal_sample_batch = np.random.normal(
+            0, 1, size=(n_samples, self.dimension)
+        )
 
         mean, _, L = self.reconstruct_distribution_parameters(
             variational_parameters, return_cholesky=True
@@ -435,7 +428,8 @@ class SparseNormalVariational(Variational):
             variational_parameters
         )
         jacobi_mean = dia_array(
-            (np.ones(self.dimension), np.array([0])), shape=(self.dimension, self.dimension)
+            (np.ones(self.dimension), np.array([0])),
+            shape=(self.dimension, self.dimension),
         )
 
         for sample in standard_normal_sample_batch:

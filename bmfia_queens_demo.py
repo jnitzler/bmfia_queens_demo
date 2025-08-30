@@ -224,9 +224,36 @@ if __name__ == "__main__":
         # run_iterator(bmfia_iterator, global_settings=global_settings_initial)
         print("Finished initial training phase of BMFIA.")
 
-        # -------------------------------------------------------------------------------------------------------
-        # ------------------------ BMFIA: inference phase -------------------------------------------------------
-        # -------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------------------------
+    # ------------------------ BMFIA: inference phase -------------------------------------------------------
+    # -------------------------------------------------------------------------------------------------------
+    experiment_name = "bmfia_inference_phase"
+    global_settings_inference = GlobalSettings(
+        experiment_name=experiment_name, output_dir=output_dir_path_inference
+    )
+    with global_settings_inference:
+
+        # we need to repeat the model setup for the inference phase
+        # here we only need the LF model
+        local_scheduler_lf = LocalWFeatures(
+            experiment_name,
+            num_jobs=6,
+            num_procs=1,
+            restart_workers=False,
+            verbose=True,
+        )
+        print("schedulers set up")
+
+        ## Setup the QUEENS simulation models
+        ## As we will later need gradients of the LF model, we set it up as an adjoint model
+        ## in the initial training phase, we do not need gradients of LF
+        lf_model = AdjointSimulationModel(
+            scheduler=local_scheduler_lf,
+            driver=mpi_driver_lf,
+            gradient_driver=mpi_driver_lf_gradient,
+        )
+        print("LF model set up")
+
         # get experimental data
         csv_data_processor = CsvDataProc(
             file_name_identifier="observations.csv",
@@ -298,3 +325,7 @@ if __name__ == "__main__":
             noise_variance=initial_noise_var,
         )
         breakpoint()
+
+        # setup the rpvi iterator for the inference phase
+
+

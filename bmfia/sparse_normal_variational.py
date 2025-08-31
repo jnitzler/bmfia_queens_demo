@@ -309,7 +309,7 @@ class SparseNormalVariational(Variational):
             "Gradient of logpdf w.r.t. variational parameters not implemented"
         )
 
-    def grad_logpdf_sample(self, sample_batch, variational_parameters):
+    def grad_sample_logpdf(self, sample_batch, variational_parameters):
         """Computes the gradient of the logpdf w.r.t. the *x*.
 
         Args:

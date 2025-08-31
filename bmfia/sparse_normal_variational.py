@@ -263,6 +263,8 @@ class SparseNormalVariational(Variational):
             variational_parameters, return_cholesky=True
         )
         y = np.atleast_2d(x).T - mean
+
+        L = scipy.sparse.csc_matrix(L)  # convert to csc for spsolve_triangular
         z = scipy.sparse.linalg.spsolve_triangular(L, y, lower=True)
         u = scipy.sparse.linalg.spsolve_triangular(
             csr_array(L.transpose()), z, lower=False
@@ -309,7 +311,7 @@ class SparseNormalVariational(Variational):
             "Gradient of logpdf w.r.t. variational parameters not implemented"
         )
 
-    def grad_sample_logpdf(self, sample_batch, variational_parameters):
+    def grad_sample_logpdf(self, variational_parameters, sample_batch):
         """Computes the gradient of the logpdf w.r.t. the *x*.
 
         Args:
@@ -338,7 +340,7 @@ class SparseNormalVariational(Variational):
                 breakpoint()
             gradient_lst.append(x.reshape(-1, 1))
 
-        gradients_batch = np.array(gradient_lst)
+        gradients_batch = np.array(gradient_lst).squeeze()
         return gradients_batch
 
     def fisher_information_matrix(self, variational_parameters):
@@ -393,6 +395,26 @@ class SparseNormalVariational(Variational):
         samples_mat = mean + L.dot(standard_normal_sample_batch.T)
 
         return samples_mat.T, standard_normal_sample_batch
+
+    def grad_params_reparameterization(
+        self,
+        variational_parameters,
+        standard_normal_sample_batch,
+        upstream_gradient=None,
+    ):
+        """Calculate the gradient of the reparameterization w.r.t. the variational parameters."""
+        grad_params_repara = []
+        jacobi_reparameterization = (
+            self.jacobi_variational_parameters_reparameterization(
+                standard_normal_sample_batch, variational_parameters
+            )
+        )
+        for jacobi, up_grad in zip(
+            jacobi_reparameterization, upstream_gradient, strict=True
+        ):
+            grad_params_repara.append(jacobi.multiply(up_grad).sum(axis=1))
+        grad_params_repara = np.array(grad_params_repara).squeeze()
+        return grad_params_repara
 
     def jacobi_variational_parameters_reparameterization(
         self, standard_normal_sample_batch, variational_parameters

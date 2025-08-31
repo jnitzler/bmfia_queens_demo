@@ -4,9 +4,6 @@ import numpy as np
 
 ## Paths to model input files
 lf_input_file_template = Path("./external_models/lf_input_template.json")
-lf_adjoint_input_file_template = Path(
-    "./external_models/lf_adjoint_input_template.json"
-)
 hf_input_file_template = Path("./external_models/hf_input_template.json")
 
 ## Paths to model executables
@@ -34,9 +31,6 @@ assert (
     lf_input_file_template.exists()
 ), "Low-fidelity input file template does not exist."
 assert (
-    lf_adjoint_input_file_template.exists()
-), "Low-fidelity adjoint input file template does not exist."
-assert (
     hf_input_file_template.exists()
 ), "High-fidelity input file template does not exist."
 assert lf_model_path.exists(), "Low-fidelity model executable does not exist."
@@ -57,19 +51,17 @@ assert neighbor_mapping_path.exists(), "Neighbor mapping file does not exist."
 
 # -------------------------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------
-
+# import necessary QUEENS modules
 from queens.data_processors.numpy_file import NumpyFile as NumpyDataProc
 from queens.data_processors.csv_file import CsvFile as CsvDataProc
-
-## Import all necessary modules from QUEENS to setup models, drivers and schedulers
 from queens.global_settings import GlobalSettings
 from queens.main import run_iterator
 from queens.models.simulation import Simulation as SimulationModel
-from queens.models.adjoint import Adjoint as AdjointSimulationModel
 from queens.parameters import Parameters
 from queens.iterators.reparameteriztion_based_variational import RPVI
 from queens.stochastic_optimizers.sgd import SGD
 
+# import custom BMFIA modules that partially override QUEENS modules
 from bmfia.bmfia_iterator import BmfiaIterator
 from bmfia.deal_driver import Deal as DealDriver
 from bmfia.gaussian_markov_random_field import GaussianMarkovRandomField
@@ -78,6 +70,7 @@ from bmfia.uniform_grid_interpolator import UniformGridInterpolator
 from bmfia.gaussian_cnn import GaussianCNN
 from bmfia.bayesian_mf_gaussian_likelihood import BMFGaussianModel
 from bmfia.sparse_normal_variational import SparseNormalVariational
+from bmfia.adjoint_bmfia import AdjointBMFIA as AdjointSimulationModel
 
 # define the main execution (necessary for multiprocessing on some systems)
 if __name__ == "__main__":
@@ -137,7 +130,7 @@ if __name__ == "__main__":
     mpi_driver_lf_gradient = DealDriver(
         parameters,
         lf_input_file_template,
-        lf_model_path,
+        lf_adjoint_model_path,
         files_to_copy=None,
         data_processor=lf_gradient_data_processor,
         gradient_data_processor=None,  # only needed for automated differentiation, not for adjoint
@@ -164,9 +157,9 @@ if __name__ == "__main__":
 
     ## setup initial design configuration for training data points
     initial_design = {
-        "num_HF_eval": 100,
+        "num_HF_eval": 220,
         "seed": 1,
-        "num_hyper_params_steps": 10,
+        "num_hyper_params_steps": 20,
         "delta_range": [5.0e-3, 1.0e-1],
         "mean_range": [1.0, 1.0],
         "L": 1.0,
@@ -224,7 +217,7 @@ if __name__ == "__main__":
         )
 
         ## finally run the BMFIA iterator (the initial training phase) / start the QUEENS run
-        # run_iterator(bmfia_iterator, global_settings=global_settings_initial)
+        run_iterator(bmfia_iterator, global_settings=global_settings_initial)
         print("Finished initial training phase of BMFIA.")
 
     # -------------------------------------------------------------------------------------------------------
@@ -254,6 +247,7 @@ if __name__ == "__main__":
             scheduler=local_scheduler_lf,
             driver=mpi_driver_lf,
             gradient_driver=mpi_driver_lf_gradient,
+            adjoint_file="adjoint_data.npy",
         )
         print("LF model set up")
 
@@ -298,9 +292,9 @@ if __name__ == "__main__":
 
         # setup the multi-fidelity conditional approximation
         mf_conditional_approx = GaussianCNN(
-            num_epochs=5,  # 5000,
+            num_epochs=5000,
             batch_size=64,
-            training_rate=0.005,
+            training_rate=0.001,
             optimizer_seed=42,
             verbosity_on=True,
             nugget_std=1.0e-4,

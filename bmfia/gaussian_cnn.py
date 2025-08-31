@@ -535,10 +535,9 @@ class GaussianCNN(Surrogate):
             .reshape(-1, *self.input_grid)
             .astype("float32")
         )
-
-        yhat = self.nn_model(x_test_transformed)
-        mean_pred = yhat.mean().numpy()
-        var_pred = yhat.variance().numpy()
+        output = self.nn_model.predict(x_test_transformed)
+        mean_pred = output[..., :num_channels]
+        var_pred = np.square(output[..., num_channels:])
 
         # --- rescale and reshape mean for output ---
         mean_rescaled = (
@@ -548,7 +547,7 @@ class GaussianCNN(Surrogate):
             + self.mean_function(x_test)[..., :num_channels]
         )
 
-        # now shape back in F order --> should be correct
+        # now shape back in F order
         mean_rescaled = mean_rescaled.reshape(-1, num_coords * num_channels, order="F")
 
         # --- rescale and reshape var for output ---
@@ -606,9 +605,9 @@ class GaussianCNN(Surrogate):
             )
             x_test_transformed = tf.reshape(x_test_transformed, [-1, *self.input_grid])
 
-            yhat = self.nn_model(x_test_transformed)
-            mean_pred = tf.cast(yhat.mean(), tf.float32)
-            var_pred = tf.cast(yhat.variance(), tf.float32)
+            output = self.nn_model.predict(x_test_transformed)
+            mean_pred = output[..., :num_channels]
+            var_pred = np.square(output[..., num_channels:])
 
             # we calculate the gradients for the log lik here directly
             # by defining scalar dependencies in log likelihood and then

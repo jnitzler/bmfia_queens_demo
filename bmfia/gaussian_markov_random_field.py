@@ -135,16 +135,14 @@ class GaussianMarkovRandomField(Continuous):
         self.chol = None
         self.logpdf_const = None
 
-    def grad_logpdf(self, x, extended_x):
+    def grad_logpdf(self, x):
         """Gradient of the log pdf w.r.t. x."""
         # If grad recomputes delta, invalidate factor first
         diff = x - self.mean
-        diff_extended = extended_x - self.mean
-
         a = 1.0e-9 + 0.5 * diff.shape[1]
 
         mean = []
-        for d_e in diff_extended:
+        for d_e in diff:
             mean.append(self.precision_raw.dot(d_e).dot(d_e))
         mean = np.array(mean)
         mean = np.nanmean(mean, axis=0)

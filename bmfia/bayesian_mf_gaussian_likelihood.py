@@ -10,6 +10,9 @@ from queens.iterators.reparameteriztion_based_variational import RPVI
 from queens.models.likelihoods._likelihood import Likelihood
 from queens.parameters.parameters import Parameters
 from queens.stochastic_optimizers.adam import Adam
+from queens.variational_distributions.mean_field_normal import (
+    MeanFieldNormal as VariationalMeanFieldNormal,
+)
 
 from bmfia.mean_field_generalized_gamma import MeanFieldGeneralizedGammaDistribution
 
@@ -123,12 +126,8 @@ class BMFGaussianModel(Likelihood):
                 "save_bool": False,
             },
         }
-        variational_distribution = {
-            "variational_approximation_type": "mean_field",
-            "variational_family": "normal",
-            "nugget_var_diag": 1.0e-9,
-            "exp_transform": False,
-        }
+        dimension = 1
+        variational_distribution = VariationalMeanFieldNormal(dimension)
 
         n_samples_per_iter = 4
         variational_transformation = None
@@ -148,39 +147,29 @@ class BMFGaussianModel(Likelihood):
 
         # ---------------------------------------------
         # note we will do a exp transform for actual tau
-        variational_parameter_initialization = {
-            "dimension": 1,
-            "mean": 0.0,
-            "variance": 1.0,
-        }
-        natural_gradient = False
-        FIM_dampening = False
-        decay_start_iteration = 50
-        dampening_coefficient = 1e-2
-        FIM_dampening_lower_bound = 1e-8
-        score_function_bool = False
-
         self.my_tau_model = PrecisionLikDummy(
             self.normal_distribution, self.spatial_dim
         )
-
+        global_settings = {}  # dummy
         self.tau_svi = RPVI(
             copy.copy(self.my_tau_model),
             tau_param,
+            global_settings,
             result_description,
             variational_distribution,
             n_samples_per_iter,
-            variational_transformation,
             random_seed,
             max_feval,
             stochastic_optimizer,
-            variational_parameter_initialization,
-            natural_gradient,
-            FIM_dampening,
-            decay_start_iteration,
-            dampening_coefficient,
-            FIM_dampening_lower_bound,
-            score_function_bool,
+            variational_transformation=variational_transformation,
+            variational_parameter_initialization="random",
+            natural_gradient=False,
+            FIM_dampening=False,
+            decay_start_iteration=50,
+            dampening_coefficient=1e-2,
+            FIM_dampening_lower_bound=1e-8,
+            score_function_bool=False,
+            verbose_every_n_iter=10000,  # we do not want any output here for the sub problem
         )
         self.tau_svi_lst = []
 
@@ -208,7 +197,7 @@ class BMFGaussianModel(Likelihood):
             axes=[1, 2],
         ).reshape(num_samples, -1, order="F")
         forward_model_features = np.rot90(
-            output.get("meta_data")[:num_samples].reshape(
+            output.get("features")[:num_samples].reshape(
                 num_samples, 50, 50, 1, order="F"
             ),
             k=1,
@@ -307,10 +296,13 @@ class BMFGaussianModel(Likelihood):
             # loop over the samples of lf svi (different lf models)
             for z_vec, tau in zip(z_mat, tau_vec, strict=True):
                 # we calculate the entire gradient within tensorflow
-                breakpoint()
-                d_log_lik_d_y = self.mf_interface.evaluate_and_gradient(
-                    z_vec[np.newaxis, ...], noise_var=(1 / tau), y_obs=y_obs
+                output = self.mf_approx.predict(
+                    z_vec[np.newaxis, ...],
+                    gradient_bool=True,
+                    noise_var=(1 / tau),
+                    y_obs=y_obs,
                 )
+                d_log_lik_d_y = output["d_log_lik_d_y"]
                 grad_log_lik_lst.append(d_log_lik_d_y)
 
             grad_log_likelihood = np.array(grad_log_lik_lst).squeeze()
@@ -401,7 +393,7 @@ class BMFGaussianModel(Likelihood):
         )
 
     def em_evaluate_mf_likelihood(
-        self, samples, forward_model_output, forward_model_features
+        self, _samples, forward_model_output, forward_model_features
     ):
         """Update the noise variance using the EM algorithm.
 
@@ -410,34 +402,29 @@ class BMFGaussianModel(Likelihood):
             forward_model_output (np.array): Forward model output
             forward_model_features (np.array): Forward model features
         """
-        # the new estimate for the noise variance is the inverse of the
-        # expectation of the precisions parameter's (inverse of the noise variance)
-        # posterior given the current model output (here forward_model_output)
-        # TODO: continue here!!
         num_samples = forward_model_output.shape[0]
         num_coords = self.coords_mat.shape[0]
         z_mat = forward_model_output.reshape(num_samples, num_coords, -1, order="F")
-        if forward_model_features is not None:
-            z_mat = np.concatenate((z_mat, forward_model_features), axis=2)
-        # Get the response matrices of the multi-fidelity mapping
-        breakpoint()
-        m_f_mat, var_y_mat = self.mf_interface.evaluate(z_mat)
+        z_mat = np.concatenate((z_mat, forward_model_features), axis=2)
 
-        num_tau_samples = 20  # 10 #20  # 200
+        # Get the response matrices of the multi-fidelity mapping
+        output = self.mf_approx.predict(z_mat, gradient_bool=False)
+        m_f_mat = output["result"]
+        var_y_mat = output["variance"]
+
+        num_tau_samples = 15  # this is hard coded atm
         log_lik_lst = []
         posterior_samples_tau = []
         kld_samples = []
         for m_f_vec, var_y_vec in zip(m_f_mat, var_y_mat, strict=True):
-
-            # TODO: try SMC or again MCMC/hamiltonian instead of SVI
             log_lik_lst.append(
                 self.single_tau_svi_run(m_f_vec, var_y_vec, num_tau_samples)
             )
             posterior_samples_tau.append(copy.copy(self.temp_posterior_samples_tau))
 
             sample_batch = np.array(posterior_samples_tau[-1]).reshape(-1, 1)
-            variational_params = self.tau_svi.variational_params_optimal
-            log_posterior_tau = self.tau_svi.variational_distribution_obj.logpdf(
+            variational_params = self.tau_svi.variational_params
+            log_posterior_tau = self.tau_svi.variational_distribution.logpdf(
                 variational_params, np.log(sample_batch)
             )
             log_prior_tau = self.tau_svi.parameters.joint_logpdf(sample_batch)
@@ -458,11 +445,7 @@ class BMFGaussianModel(Likelihood):
     def single_tau_svi_run(self, m_f_vec, var_vec, num_tau_samples):
         # def single_tau_svi_run(self, y_sample, num_tau_samples):
         self.tau_svi.model.update_unnormalized_posterior(m_f_vec, var_vec)
-        self.tau_svi.variational_params = (
-            self.tau_svi.variational_distribution_obj.construct_variational_parameters(
-                np.array([0.0]), np.array([1])
-            )
-        )
+        self.tau_svi.variational_params = [0.0, 0.0]  # reset to initial
         self.tau_svi.n_sims = 0
         self.tau_svi.nan_in_gradient_counter = 0
         self.tau_svi.stochastic_optimizer.iteration = 0
@@ -472,13 +455,11 @@ class BMFGaussianModel(Likelihood):
 
         self.tau_svi.run()
 
-        variational_parameters = self.tau_svi.variational_params_optimal
+        variational_parameters = self.tau_svi.variational_params
 
-        temp_posterior_samples_tau_param = (
-            self.tau_svi.variational_distribution_obj.draw(
-                variational_parameters, num_tau_samples
-            ).flatten()
-        )
+        temp_posterior_samples_tau_param = self.tau_svi.variational_distribution.draw(
+            variational_parameters, num_tau_samples
+        ).flatten()
         self.temp_posterior_samples_tau = np.exp(temp_posterior_samples_tau_param)
 
         # loop over tau samples per x sample
@@ -488,9 +469,13 @@ class BMFGaussianModel(Likelihood):
         for tau in self.temp_posterior_samples_tau:
             noise_var = 1 / tau
             var_vec = (noise_var + var_vec).flatten()
-            self.tau_svi.model.normal_distribution.update_variance(var_vec)
+            self.tau_svi.model.normal_distribution.update_variance(
+                var_vec.reshape(1, -1)
+            )
             log_likelihood_samples_lst.append(
-                self.tau_svi.model.normal_distribution.logpdf(m_f_vec).flatten()
+                self.tau_svi.model.normal_distribution.logpdf(
+                    m_f_vec.reshape(1, -1)
+                ).flatten()
             )
 
         log_likelihood_samples = np.array(log_likelihood_samples_lst).flatten()
@@ -498,7 +483,10 @@ class BMFGaussianModel(Likelihood):
 
 
 class PrecisionLikDummy:
+    """Dummy precision likelihood model for precision parameter tau."""
+
     def __init__(self, normal_distribution, spatial_dim):
+        """Initialize the dummy precision likelihood model."""
         self.parameters_mean = None  # just a dummy value
         self.variational_distribution = None  # can stay empty is just a hack
         self.variational_params = None  # can stay empty is just a hack
@@ -507,14 +495,15 @@ class PrecisionLikDummy:
         self.y_sample = None
         self.normal_distribution = normal_distribution
         self.spatial_dim = spatial_dim
+        self.num_evaluations = 1  # dummy value
 
     def update_unnormalized_posterior(self, m_f, var_y):
-        # def update_unnormalized_posterior(self, y_sample):
+        """Update the unnormalized posterior distribution for tau."""
         self.m_f = m_f
         self.var_y = var_y
 
-    # eval and grad of likelihood wrt tau_param
     def evaluate_and_gradient(self, tau_param_batch):
+        """Evaluate log likelihood and its gradient w.r.t. tau_param."""
         log_lik_mf_lst = []
         grad_tau_log_lik_mf_lst = []
         tau_batch = np.exp(tau_param_batch)
@@ -522,8 +511,12 @@ class PrecisionLikDummy:
             noise_var = 1 / tau
             var_vec = noise_var + self.var_y
             self.normal_distribution.update_variance(var_vec)
-            log_lik_mf_lst.append(self.normal_distribution.logpdf(self.m_f))
-            grad_logpdf_var = self.normal_distribution.grad_logpdf_var(self.m_f)
+            log_lik_mf_lst.append(
+                self.normal_distribution.logpdf(self.m_f.reshape(1, -1))
+            )
+            grad_logpdf_var = self.normal_distribution.grad_logpdf_var(
+                self.m_f.reshape(1, -1)
+            )
             grad_tau_log_lik_mf_lst.append(np.sum(grad_logpdf_var * (-1 / tau)))
 
         mf_log_likelihood = np.array(log_lik_mf_lst).reshape(-1, 1)

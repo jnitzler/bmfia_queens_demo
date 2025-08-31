@@ -88,7 +88,7 @@ class MeanFieldGeneralizedGammaDistribution(Continuous):
 
         return logpdf
 
-    def grad_logpdf(self, x, _extended_x):
+    def grad_logpdf(self, x):
         """Gradient of the log pdf with respect to x.
 
         Args:
@@ -98,8 +98,6 @@ class MeanFieldGeneralizedGammaDistribution(Continuous):
             grad_logpdf (np.ndarray): Gradient of the log pdf evaluated at positions
         """
         gradients_batch = (self.alpha - 1) - self.beta * np.exp(x) + 1
-        # gradients_batch = (self.alpha - 1)/np.exp(x) - self.beta
-        # gradients_batch = factor * ((self.alpha - 1) - self.beta * np.exp(x))
         gradients_batch = gradients_batch.reshape(x.shape[0], -1)
 
         return gradients_batch

@@ -128,7 +128,9 @@ class SparseNormalVariational(Variational):
             random (bool, optional): If True, a random initialization is used. Otherwise the
                                      default is selected
         """
+        # all parameters first 0 -> mean 0 and covariance 0 but variance 1
         variational_parameters = np.zeros(self.n_parameters)
+        variational_parameters[: self.dimension] = 1.0  # now set mean to 0
         return variational_parameters
 
     def construct_variational_parameters(

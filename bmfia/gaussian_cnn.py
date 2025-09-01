@@ -328,7 +328,9 @@ class GaussianCNN(Surrogate):
 
         # compile the Tensorflow model
         autoencoder = tf.keras.Model(inputs=encoder_inputs, outputs=decoder_outputs)
-        optimizer = tf.optimizers.Adam(learning_rate=self.training_rate, clipnorm=1.0e3)
+        optimizer = tf.optimizers.Adamax(
+            learning_rate=self.training_rate, clipnorm=1.0e3
+        )
         # optimizer = tf.keras.optimizers.SGD(
         #     learning_rate=self.training_rate, clipnorm=1.0e3
         # )

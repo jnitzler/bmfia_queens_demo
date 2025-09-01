@@ -135,8 +135,8 @@ class BMFGaussianModel(Likelihood):
         max_feval = 2500
         max_iteration = 2500
         learning_rate = 0.05
-        rel_l1_change_threshold = 1e-4
-        rel_l2_change_threshold = 1e-4
+        rel_l1_change_threshold = 1e-7
+        rel_l2_change_threshold = 1e-7
         stochastic_optimizer = Adam(
             learning_rate,
             "max",
@@ -438,8 +438,8 @@ class BMFGaussianModel(Likelihood):
         em_log_likelihood = np.mean(log_likelihood_samples + kld_samples, axis=1)
         mean_noise = np.mean(1 / self.posterior_samples_tau)
         std_noise = np.std(1 / self.posterior_samples_tau)
-        _logger.info("Mean of noise: {}".format(mean_noise))
-        _logger.info("Std of noise: {}".format(std_noise))
+        print("Mean of noise: {}".format(mean_noise))
+        print("Std of noise: {}".format(std_noise))
         return em_log_likelihood.reshape(-1, 1)
 
     def single_tau_svi_run(self, m_f_vec, var_vec, num_tau_samples):

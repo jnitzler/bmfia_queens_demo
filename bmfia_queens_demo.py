@@ -1,6 +1,9 @@
 # Paths to external computational models and directories
 from pathlib import Path
 import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+
 
 ## Paths to model input files
 lf_input_file_template = Path("./external_models/lf_input_template.json")
@@ -59,7 +62,7 @@ from queens.main import run_iterator
 from queens.models.simulation import Simulation as SimulationModel
 from queens.parameters import Parameters
 from queens.iterators.reparameteriztion_based_variational import RPVI
-from queens.stochastic_optimizers.sgd import SGD
+from queens.stochastic_optimizers.adam import Adam
 
 # import custom BMFIA modules that partially override QUEENS modules
 from bmfia.bmfia_iterator import BmfiaIterator
@@ -217,7 +220,7 @@ if __name__ == "__main__":
         )
 
         ## finally run the BMFIA iterator (the initial training phase) / start the QUEENS run
-        run_iterator(bmfia_iterator, global_settings=global_settings_initial)
+        #run_iterator(bmfia_iterator, global_settings=global_settings_initial)
         print("Finished initial training phase of BMFIA.")
 
     # -------------------------------------------------------------------------------------------------------
@@ -294,9 +297,9 @@ if __name__ == "__main__":
         mf_conditional_approx = GaussianCNN(
             num_epochs=5000,
             batch_size=64,
-            training_rate=0.001,
+            training_rate=0.002,
             optimizer_seed=42,
-            verbosity_on=True,
+            verbosity_on=False,
             nugget_std=1.0e-4,
             loss_plot_path_dir=output_dir_path_inference,
             cnn_grid_input=[
@@ -337,13 +340,19 @@ if __name__ == "__main__":
         # setup a sparse normal variational distribution
         dimension = parameters.num_parameters
         variational_distribution = SparseNormalVariational(
-            dimension, half_off_diag_width=10, nugget_var_diag=1e-7
+            dimension, half_off_diag_width=5, nugget_var_diag=1e-6
         )
         n_samples_per_iter = 5  # number of samples per iteration
         random_seed = 42
-        max_feval = 4000
-        stochastic_optimizer = SGD(
-            learning_rate=1.0e-3,
+        max_feval = 1000 
+
+        # Note: alternatively SGD gives good results
+        # sometimes generalized better than the Adam optimizer
+        # however SGD is less "forgiving" when it comes to the choice of learning rate
+        # and requires more manual tuning"
+        # for quick testing and playing around, Adam is more convenient
+        stochastic_optimizer = Adam( 
+            learning_rate=2.0e-2,
             optimization_type="max",
             rel_l1_change_threshold=1.0e-7,
             rel_l2_change_threshold=1.0e-7,
@@ -374,10 +383,27 @@ if __name__ == "__main__":
             dampening_coefficient=1e-2,
             FIM_dampening_lower_bound=1e-8,
             score_function_bool=False,
-            verbose_every_n_iter=10,
+            verbose_every_n_iter=5,
         )
 
         # now actually run the inference
         run_iterator(rpvi_iterator, global_settings=global_settings_inference)
         print("Finished inference phase of BMFIA.")
-        breakpoint()
+
+
+    # load results and visualize results
+    with open("output/inference_phase/bmfia_inference_phase.pickle", "rb") as f:
+        results = pickle.load(f)
+
+    # plot ELBO convergence
+    elbo_trace = results["iteration_data"]["elbo"]
+    fig, ax = plt.subplots()
+    ax.plot(elbo_trace)
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("ELBO")
+    ax.set_title("ELBO Convergence")
+    fig.savefig(output_dir_path_inference/"elbo_convergence.png")
+
+    # TODO: posterior plots will be added in the near future
+
+
